@@ -1,3 +1,15 @@
+// Một hồ sơ sinh viên có 2 thông tin chính như sau:
+// •Name
+// •Email
+// Hãy viết một chương trình chạy trên chế độ interactive với các lệnh sau:
+// •Load: Nạp dữ liệu từ bàn phím gồm n sinh viên
+// •Find<student_name>: Trả về hồ sơ của sinh viên có tên được nhập vào
+// •Insert <student_name> <email>: Chèn một hồ sơ sinh viên mới vào cuối danh sách
+// •Remove <student_name>: loại bỏ hồ sơ sinh viên
+// •Store <filename>: Lưu trữ danh sách hồ sơ lênfile văn bản
+// •Quit: thoát khỏi chương trình
+// Yêu cầu: Sử dụng cây nhị phân tìm kiếm
+
 #include <stdio.h>
 #include <string.h>
 
