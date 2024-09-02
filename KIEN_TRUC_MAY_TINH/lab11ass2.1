@@ -1,0 +1,69 @@
+.eqv IN_ADRESS_HEXA_KEYBOARD 0xFFFF0012 
+.eqv OUT_ADRESS_HEXA_KEYBOARD 0xFFFF0014
+
+
+.data
+Message: .asciiz "Oh my god. Someone's presed a button.\n"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# MAIN Procedure
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.text
+main:
+ #---------------------------------------------------------
+ # Enable interrupts you expect
+ #---------------------------------------------------------
+ # Enable the interrupt of Keyboard matrix 4x4 of Digital Lab Sim
+ li $t1, IN_ADRESS_HEXA_KEYBOARD
+ li $t2, OUT_ADRESS_HEXA_KEYBOARD
+ li $t3, 0x80 # bit 7 of = 1 to enable interrupt 
+sb $t3, 0($t1)
+li $t4, 0x01
+ #---------------------------------------------------------
+ # No-end loop, main program, to demo the effective of interrupt
+ #---------------------------------------------------------
+Loop: nop
+ nop
+ nop
+ nop
+ b  Loop # Wait for interrupt
+end_main:
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# GENERAL INTERRUPT SERVED ROUTINE for all interrupts
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ktext 0x80000180 
+ #--------------------------------------------------------
+ # Processing
+ #-------------------------------------------------------- 
+IntSR: addi $v0, $zero, 4 # show message 
+ la $a0, Message
+ syscall
+ 
+check_rows: 
+sb $t4, 0($t1) # must reassign expected row 
+lb $a0, 0($t2) # read scan code of key button 
+beqz $a0, check_next_row # if no key pressed, check next row 
+print: 
+li $v0, 34 # print integer (hexa) 
+move $a0, $a0 
+syscall 
+li $v0, 11 
+li $a0, 10 # print new line 
+syscall 
+j next_pc
+sleep: 
+li $a0, 100 # sleep 100ms 
+li $v0, 32 
+syscall 
+check_next_row: 
+sll $t4, $t4, 1 # shift left to check next row 
+bne $t4, 0x10, check_rows # if not all rows checked, continue 
+li $t4, 0x01 # reset row to 1 and start over
+j check_rows
+ #--------------------------------------------------------
+ # Evaluate the return address of main routine
+ # epc <= epc + 4
+ #--------------------------------------------------------
+next_pc:mfc0 $at, $14 # $at <= Coproc0.$14 = Coproc0.epc
+ addi $at, $at, 4 # $at = $at + 4 (next instruction)
+ mtc0 $at, $14 # Coproc0.$14 = Coproc0.epc <= $at 
+return: eret # Return from exception 

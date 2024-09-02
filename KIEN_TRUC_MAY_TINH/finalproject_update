@@ -1,0 +1,198 @@
+
+.eqv SEVENSEG_LEFT 0xFFFF0011 		# Dia chi cua den led 7 doan trai.
+								# Bit 0 = doan a;
+								# Bit 1 = doan b; ....
+								# Bit 7 = dau cham .
+.eqv SEVENSEG_RIGHT 0xFFFF0010 		# Dia chi cua den led 7 doan phai
+
+.eqv IN_ADDRESS_HEXA_KEYBOARD 0xFFFF0012  #dia chi nhan hang va cot phim nhan, =0 neu khong go
+
+.eqv COUNTER 0xFFFF0013 				# Dia chi thanh ghi bo dem Counter
+								
+.eqv MASK_CAUSE_COUNTER 0x00000400 	# Bit 10: Counter interrupt
+								#  Mat na Mask de kiem tra ngat do bo dem Counter
+
+.eqv KEY_CODE   0xFFFF0004         	# Dia chi cua thanh ghi ma ASCII tu ban phim, 1 byte 
+.eqv KEY_READY  0xFFFF0000        	# Dia chi cua thanh ghi trang thai ban phim ( = 1 neu co ma ky tu moi)  
+
+.data
+mang_so: .byte 	63, 6, 91, 79, 102, 109, 125, 7, 127, 111 #Hien thi tren led 7 tu 0 den 9
+string: .asciiz "Bo mon ky thuat may tinh" 
+message1: .asciiz "Thoi gian go: "
+message2: .asciiz " giay. \n"
+message3: .asciiz "Toc do go trung binh: "
+message4: .asciiz " tu/phut.\n"
+message5: .asciiz "Continue ?"
+
+
+.text	
+MAIN:	
+	li	$k0,  KEY_CODE        #khoi tao thanh ghi $k0 voi dia chi cua KEY_CODE     
+	li  	$k1,  KEY_READY      #khoi tao thanh ghi $k1 voi dia chi cua KEY_READY
+	 
+	li 	$t1, COUNTER		#Khoi tao bo dem timer
+	sb 	$t1, 0($t1)
+	
+	addi	$s0, $0, 0		#Dem so ky tu trong 1s
+	addi	$s1, $0, 0		#Dem tong so ky tu dung
+	addi	$s2, $0, 0		#Dem tong so tu nhap vao
+	addi	$s3, $0, 0		#Dem so lan counter_interrupt
+	addi	$s4, $0, 0		#Luu tru ky tu truoc do
+	addi	$s5, $0, 0		#Dem thoi gian (giay)
+	
+	la	$a1, string
+
+loop: 
+	lw   	$t1, 0($k1)                 	#$t1 = [$k1] = KEY_READY              
+	bne  	$t1, $zero, make_Keyboard_Interrupt	
+	
+	li $a0, 5                           #sleep 5ms
+	li $v0, 32                          
+	syscall
+	
+	b loop				# cu lap 5 lan thi tao 1 counter interrupt
+	nop                                      #no operation
+
+make_Keyboard_Interrupt:
+	teqi	$t1, 1
+	b	loop				# neu $t1 = 1, nhay ve loop de tiep tuc kiem tra va xu ly
+	nop
+
+end_Main:
+
+.ktext 0x80000180 #danh dau doan ma la vung bo nho chua cac ham xu ly ngat ISR ( interrupt service routines)
+
+dis_interrupt:
+	li 	$t1, COUNTER  #luu dia chi 
+	sb 	$zero, 0($t1)    #vo hieu hoa ngat lien quan den dem thoi gian counter
+				     #ngat de xac dinh nguyen nhan ngat do bo dem hay ban phim
+
+get_Cause:	mfc0 	$t1, $13 			#sao chep noi dung thanh ghi  $13 vao $t1 de lay nguyen nhan gay ngat hien tai
+
+isCount: #kiem tra loai ngat
+	li 	$t2, MASK_CAUSE_COUNTER		#gia dinh nguyen nhan ngat do bo dem vao thanh ghi $t2.
+	 and 	$at, $t1,$t2                                           #thuc hien phep and de kiem tra $t1, $t2 co giong nhau ko
+	 bne 	$at,$t2, keyboard_Interrupt                            #neu ko phai do bo dem thi se sang kiem tra ky tu ngat la gi
+	 
+#ngat do bo dem Counter
+counter_Interrupt:
+	blt	$s3, 40, continue		#40x5msx5 = 1 giay => den continue
+	jal	display
+	addi	$s3, $0, 0			#Khoi tao lai $s3
+	addi	$s5, $s5, 1			#Tang bien dem thoi gian(s)
+	j	end_interrupt
+	nop
+continue:
+	addi	$s3, $s3, 1			#Neu chua du 1s thi tang bien dem so lan ngat
+	j 	end_interrupt
+	nop
+
+#Ngat do ban phim
+keyboard_Interrupt:
+
+check_board:				 
+	lb	$t0, 0($a1)			#Load ky tu trong string
+	lb	$t1, 0($k0)			#Lay ki tu nhap vao tu ban phim
+	beq	$t1, $0, end_interrupt			#Neu ky tu tu ban phim la null thi se ket thuc ham 
+	beq 	$t1, '\n', end_Program		#Neu xuong dong => tien hanh kiem tra va in
+	bne	$t0, $t1, check_space	#Neu ki tu nhap vao va ki tu thu i trong mang da cho giong nhau -> dem so ki tu dung
+	nop
+	addi	$s1, $s1, 1			#Tang bien dem so ky tu dung
+check_space:				#Kiem tra ki tu nhap vao co phai la ' ' hay ko
+	bne	$t1, ' ', end_Process	#Neu ky tu nhap vao la ' 'va ky tu truoc do khac ' ' thi dem so tu da nhap
+	nop
+	beq	$s4, ' ', end_Process
+	nop
+	addi	$s2, $s2, 1			#Tang bien dem so tu da nhap
+end_Process:
+	addi	$s0, $s0, 1			#Tang so ky tu trong 1s len 1
+	addi	$s4, $t1, 0			#Cap nhat lai ky tu truoc do
+	addi	$a1, $a1, 1 			#Tang con tro len 1 <=> string+i
+	j end_interrupt
+
+display:
+	addi	$sp, $sp, -4		#luu $ra vao ngan xep de co the khoi phuc lai gia tri $ra ban dau, de display tro ve dung dia chi khi hoan thanh	
+	sw	$ra, ($sp)
+	
+	addi	$t0, $0, 10
+	div	$s0, $t0
+	mflo	$v1				#Lay phan nguyen dat vao thanh ghi $v1
+	mfhi	$v0				#Lay phan du dat vao thanh ghi $v0
+	
+	la 	$a0, mang_so
+	add	$a0, $a0, $v1  #Tim gia tri tu 0 den 9 trong mang_so
+	lb 	$a0, 0($a0) 		
+	jal 	SHOW_7SEG_LEFT #Hien thi hang chuc
+	
+	la 	$a0, mang_so 
+	add	$a0, $a0, $v0  #Tim gia tri tu 0 den 9 trong mang_so
+	lb 	$a0, 0($a0) 	
+	jal 	SHOW_7SEG_RIGHT 	#Hien thi hang don vi
+	
+	addi	$s0, $0, 0		#Sau khi chieu ra man hinh thi khoi tao lai bien dem
+	lw	$ra, ($sp)		#lay gia tri $ra tu dinh ngan xep de tra ham
+	addi	$sp, $sp, 4
+	jr 	$ra                    #tra ve dia chi da luu trong thanh ghi $ra , ket thuc ham hien_thi
+	
+SHOW_7SEG_LEFT: 
+	li 	$t0, SEVENSEG_LEFT 		#Assign port's address
+	sb 	$a0, 0($t0) 			#Assign new value
+	jr 	$ra
+	
+SHOW_7SEG_RIGHT: 
+	li 	$t0, SEVENSEG_RIGHT 		#Assign port's address
+	sb 	$a0, 0($t0) 			#Assign new value
+	jr 	$ra
+	nop
+
+end_Program:
+	 addi	$v0, $0, 4
+	 la	$a0, message1
+	 syscall
+	 
+	 addi	$v0, $0, 1
+	 addi	$a0, $s5, 0 #thoi gian go
+	 syscall
+	 
+	 addi	$v0, $0, 4
+	 la	$a0, message2
+	 syscall
+	 
+	 addi	$v0, $0, 4
+	 la	$a0, message3
+	 syscall
+	 
+	 addi	$v0, $0, 1 # ma in so nguyen
+	  addi	$a0, $0, 60
+	 mult	$s2, $a0
+	 mflo	$s2
+	 div	$s2, $s5
+	 mflo	$a0  # ( toc do go tb = so tu go  /thoi gian go) x 60
+	 syscall
+	 
+	 addi	$v0, $0, 4
+	 la	$a0, message4
+	 syscall
+	 
+	 addi	$s0, $s1, 0 #sao chep ki tu dung vao $a0
+	 jal	display #hien thi tren led
+	 
+#Want to continue?
+	li $v0, 50 #ma in chuoi
+	la $a0, message5
+	syscall
+	
+	beq $a0, 0, MAIN		
+	li $v0, 10
+	syscall	 
+	
+end_interrupt: #thiet lap lai bo dem
+	li 	$t1, COUNTER
+	sb 	$t1, 0($t1)
+	mtc0 	$zero, $13 			#xoa thanh ghi nguyen nhan ngat
+	
+next_pc: #dieu huong, dam bao lenh ngat tiep theo duoc hoat dong
+	mfc0 	$at, $14 			#$at <= Coproc0.$14 = Coproc0.epc
+	 addi 	$at, $at, 4 			#$at = $at + 4 (next instruction)
+	 mtc0 	$at, $14 			#Coproc0.$14 = Coproc0.epc <= $at
+return: eret 					#Return from exception

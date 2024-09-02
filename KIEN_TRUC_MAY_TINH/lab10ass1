@@ -1,0 +1,71 @@
+#exercise 1 lab 10- LED  7 THANH
+
+.eqv SEVENSEG_LEFT 0xFFFF0011 # Dia chi cua den led 7 doan trai.
+# Bit 0 = doan a; 
+# Bit 1 = doan b; ... 
+# Bit 7 = dau .
+.eqv SEVENSEG_RIGHT 0xFFFF0010 # Dia chi cua den led 7 doan phai
+.data 
+arr: .byte 0x3f 0x6 0x5b 0x4f 0x66 0x6d 0x7d 0x7 0x7f 0x6f 
+.text
+main:
+la $s4, arr #save array's address
+li $s3, 9 # array_length
+addi $t1, $0, 0 # i=0
+addi $t5, $0, 9 # i=9 
+
+loop1:
+sle  $s2, $t1, $s3# if i<=array_length, go on
+beq $s2, $0, change_loop2 # if not, go to tmp_exit
+addi $t2, $t1, 0
+add $t2, $t2, $s4
+lb $a0, 0($t2) #nap 1 byte dau tien 
+jal SHOW_7SEG_LEFT # show
+nop
+addi $t1, $t1, 1
+j loop1
+
+loop2:
+
+sge  $t6, $t5, 0 #if i >= 0, go on 
+beq $t6, $0, change_loop1 #if not, go to exit to end 
+addi $t3, $t5, 0
+add $t3, $t3, $s4
+lb $a0, 0($t3)
+jal SHOW_7SEG_LEFT # show
+nop
+addi $t5, $t5, -1# i = i -1
+j loop2
+
+change_loop2:
+addi $t5, $t5, -1
+li $t1, 0 #come back to first value
+j loop2
+
+change_loop1:
+addi $t1, $t1, 1 
+li $t5, 9 #come back to first value
+j loop1
+
+
+endmain:
+#---------------------------------------------------------------
+# Function SHOW_7SEG_LEFT : turn on/off the 7seg
+# param[in] $a0 value to shown 
+# remark $t0 changed
+#---------------------------------------------------------------
+SHOW_7SEG_LEFT: li $t0, SEVENSEG_LEFT # assign port's address
+sb $a0, 0($t0) # assign new value 
+nop
+jr $ra
+nop
+#---------------------------------------------------------------
+# Function SHOW_7SEG_RIGHT : turn on/off the 7seg
+# param[in] $a0 value to shown 
+# remark $t0 changed
+#---------------------------------------------------------------
+SHOW_7SEG_RIGHT: li $t0, SEVENSEG_RIGHT # assign port's address
+sb $a0, 0($t0) # assign new value
+nop
+jr $ra 
+nop
